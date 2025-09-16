@@ -1,0 +1,2 @@
+C:/flutter/src/android projects/final_titus_attendence_1/android/app/.cxx/Debug/1wc5v2w4/armeabi-v7a/CMakeFiles/edit_cache.dir
+C:/flutter/src/android projects/final_titus_attendence_1/android/app/.cxx/Debug/1wc5v2w4/armeabi-v7a/CMakeFiles/rebuild_cache.dir
