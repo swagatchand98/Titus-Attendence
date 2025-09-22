@@ -1,4 +1,4 @@
-package com.example.final_titus_attendence_1
+package com.titus.attendance
 
 import io.flutter.embedding.android.FlutterActivity
 
