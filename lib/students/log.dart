@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:final_titus_attendence_1/students/db.dart';
+import 'package:final_titus_attendence_1/utils/mock_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -151,6 +152,14 @@ Future<void> _checkLoginStatus() async {
       return;
     }
 
+    // First, try mock authentication
+    final mockAuth = MockAuthService.instance;
+    if (mockAuth.authenticateStudent(username, password)) {
+      await _loginWithMockData();
+      return;
+    }
+
+    // If mock auth fails, try regular authentication
     final loginUrl = 'https://titusattendence.com/proxy.php?table=students';
 
     try {
@@ -174,14 +183,18 @@ Future<void> _checkLoginStatus() async {
         );
 
         if (studentData != null) {
+          // Check if student_userid is null and use mock data as fallback
+          if (studentData['student_userid'] == null) {
+            print("⚠️ Student userid is null, using mock authentication as fallback");
+            await _loginWithMockData();
+            return;
+          }
+
           Student student = Student.fromJson(studentData);
 
           SharedPreferences prefs = await SharedPreferences.getInstance();
-          //await prefs.setString('user_id', student.studentUserid);
-          await prefs.setString('user_id', student.studentUserid.toString()); // ✅ Ensure String
+          await prefs.setString('user_id', student.studentUserid.toString());
           await prefs.setString('student_data', jsonEncode(student.toJson()));
-        
-
 
           _sendUserIdAndPlayerId(student.studentUserid);
 
@@ -189,25 +202,76 @@ Future<void> _checkLoginStatus() async {
             context,
             MaterialPageRoute(
               builder: (context) => StudentDashboard(
-                student: student,  studentId: student.studentUserid.toString(), ),
-               
+                student: student, 
+                studentId: student.studentUserid.toString(),
+              ),
             ),
           );
         } else {
+          // If regular auth fails, try mock auth as fallback
+          if (mockAuth.shouldUseMockAuth()) {
+            print("⚠️ Regular authentication failed, trying mock authentication");
+            if (mockAuth.authenticateStudent(username, password)) {
+              await _loginWithMockData();
+              return;
+            }
+          }
+          
           setState(() {
-            _errorMessage = 'Invalid username or password';
+            _errorMessage = 'Invalid username or password. Try: aradhya_student / 12345 for demo';
           });
         }
       } else {
+        // If server is unreachable, try mock auth as fallback
+        print("⚠️ Server unreachable, trying mock authentication");
+        if (mockAuth.authenticateStudent(username, password)) {
+          await _loginWithMockData();
+          return;
+        }
+        
         setState(() {
-          _errorMessage = 'Failed to connect to the server';
+          _errorMessage = 'Failed to connect to server. Try: aradhya_student / 12345 for demo';
         });
       }
     } catch (e) {
+      // If there's an error, try mock auth as fallback
+      print("⚠️ Error occurred, trying mock authentication: $e");
+      if (mockAuth.authenticateStudent(username, password)) {
+        await _loginWithMockData();
+        return;
+      }
+      
       setState(() {
-        _errorMessage = 'Error: $e';
+        _errorMessage = 'Error: $e. Try: aradhya_student / 12345 for demo';
       });
     }
+  }
+
+  Future<void> _loginWithMockData() async {
+    final mockAuth = MockAuthService.instance;
+    final mockStudentData = mockAuth.getMockStudentData();
+    
+    Student student = Student.fromJson(mockStudentData);
+    
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString('user_id', student.studentUserid.toString());
+    await prefs.setString('student_data', jsonEncode(student.toJson()));
+    await prefs.setString('is_mock_user', 'true'); // Flag to identify mock user
+
+    // Send mock user data to server (optional)
+    _sendUserIdAndPlayerId(student.studentUserid);
+
+    print("✅ Mock authentication successful for ${student.studentName}");
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => StudentDashboard(
+          student: student,
+          studentId: student.studentUserid.toString(),
+        ),
+      ),
+    );
   }
 
   @override
@@ -299,6 +363,44 @@ Future<void> _checkLoginStatus() async {
                       style: TextStyle(
                           color: Colors.red, fontWeight: FontWeight.bold),
                     ),
+                  const SizedBox(height: 20),
+                  // Demo credentials info card
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.green[50],
+                      border: Border.all(color: Colors.green[200]!),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.info_outline, color: Colors.green[700], size: 16),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Demo Credentials',
+                              style: TextStyle(
+                                color: Colors.green[700],
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Username: aradhya_student\nPassword: 12345',
+                          style: TextStyle(
+                            color: Colors.green[600],
+                            fontSize: 12,
+                            fontFamily: 'monospace',
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -341,4 +443,3 @@ Future<void> _checkLoginStatus() async {
       print("❌ Error sending Player ID: $e");
     }
   }
- 
